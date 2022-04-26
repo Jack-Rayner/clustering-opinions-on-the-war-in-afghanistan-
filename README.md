@@ -1,0 +1,48 @@
+# TITLE HERE
+___
+## Background
+When it comes to public opinion on Afghanistan, few wars have been as polarizing or provided such opportunity for a wide spectrum of opinions. What began as a bipartisan response to the 9/11 attacks--only one member in the House of Representatives and Senate combined voting nay--evolved over the next 20 years into one of the most divisive political issues, even across party lines. By the Fall of 2021, "54% of U.S. adults say the decision to withdraw troops from the country was the right one, while 42% say it was wrong"<sup>1</sup>. This division, combined with a widespread belief that the United States' goals had not been met regardless of political affiliation, makes it particularly intriguing to investigate key aspects and topics of the war.
+
+## Problem Statement
+Throughout the war in Afghanistan, what topics or opinions were important, and how did sentiments on such topics change as the conflict continued?
+
+
+#### Key Questions:
+ - What are the main topics covered by New York Times articles about the war?
+ -  How does sentiment on these topics change?
+ - What events and headlines correlate with a large change in sentiment?
+
+
+Through the investigation of this question, it is anticipated that general trends in public opinion can be discovered. By measuring sentiment of each topic, a more nuanced insight of sentiments overall can be explored.
+
+## Data Dictionary
+|Feature|Type|Dataset|Description|
+|---|---|---|---|
+|**abstract**|*str*|articles_to_viz.csv|Abstract of NYT article |
+|**snippet**|*str*|articles_to_viz.csv|Exerpt from article|
+|**lead_paragraph**|*str*|articles_to_viz.csv|First paragraph of article|
+|**headline**|*str*|articles_to_viz.csv|Article Headline|
+|**keywords**|*str*|articles_to_viz.csv|Keywords contained in or asociated with article|
+|**pub_date**|*datetime64[ns, UTC]*|articles_to_viz.csv|Publishing date of article|
+|**type_of_material**|*str*|articles_to_viz.csv|Format of article, eg. News, Interview, etc|
+|**word_count**|*int*|articles_to_viz.csv|Word count of article|
+|**overall_sentiment**|*str*|articles_to_viz.csv|Sentiment of article calulated based on all_text column|
+|**all_text**|*str*|articles_to_viz.csv|All text based columns combined into one string|
+|**topic_cluster**|*str*|articles_to_viz.csv|Highest probability topic cluster based on LDA|
+
+## Data Scrape
+The data was pulled using the New York Times API, which is explained in more detail in my [Medium Article](https://medium.com/@jackarayner/querying-with-the-new-york-times-article-search-api-2edfbaae1b63). While the excelent API makes this a relatively simple task, there were a few complications based on the needs of the project. The first was that all articles are marked with the same publishing time, and so with a 10 article per request limit, updating the begin date to the last pulled article and looping was impossible. To combat this and prevent the loop from infinitely pulling the same 10 articles, the number of articles per day was limited to 10. The second challenge was locating the date and updating it within the loop. The simplest way to do this seemed to be a regular expression to detect the date, and a very helpful function taken from [here](https://practicaldatascience.co.uk/data-science/how-to-add-days-and-subtract-days-from-dates-in-pandas) to increase the day. With the loop able to successfully pull articles with no duplicates, these were structure using a Pandas DataFrame, and using this the number of articles pulled per day was able to be kept within the 12,000 per day rate limit generously provided by the New York Times. A sleep time of 24 hours was added between each batch of articles, and with all these in place over 37,000 rows of data were collected. In order to prevent the loop getting stuck at each multiple of 12,000, 10 duplicate rows were also pulled each batch. These were dropped from the DataFrame and it was then exported to a csv as "articles_scrape".
+
+## Cleaning and EDA
+The first step necessary for cleaning the data after double checking for duplicates was correcting data types. The "headline", "keywords", and "byline" columns were still in what looked to be a Json format, but upon invoking the to_json Pandas method, the format did not easily convert. For this reason, it seemed easier to treat these columns as strings and extract the information necessary from each of them. This is also explained in detail in my Medium article referenced above; in short, a function to create one string of information for each row was created and mapped to the "headline", "keywords" columns. The byline column served no purpose in a topic model, so it was dropped for convenience sake. Following this, the pub_date was converted to a Pandas datetime object and all columns deemed not directly related to analysis or modeling were dropped. From here the simplest way to have one block of text for each article that could be fed to a model and sentiment analyzer seemed to be creating one column with all text combined to one string. This was done through creating a list of all text based columns and aggregating them to a new column titled "all_text" with a " - " as a separator. This text aggregation column was formatted ideally for sentiment analysis, and so using the Natural Language Toolkit [sentiment analysis module](https://www.nltk.org/_modules/nltk/sentiment/vader.html) a sentiment column was added to the DataFrame. With all columns necessary for topic modeling added, dataset was exported to a csv (titled "articles_clean.csv"). Some brief analysis was performed on subsets of the data in order to gain a greater understanding of what impacts sentiment. Additionally, the top words were extracted from the data.
+
+## LDA Model
+In order to create the topic clusters, the cleaned dataset was imported as a Pandas DataFrame. Words that would be frequently occurring but have no real relationship with a meaningful cluster were added to the [stop words](https://towardsdatascience.com/text-pre-processing-stop-words-removal-using-different-libraries-f20bac19929a). A class was then created for the [Sklearn LDA model](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.LatentDirichletAllocation.html) in order to easily fit, and for easily obtaining different outputs of the model. This model was then repeatedly initialized with different numbers of topics inside a for loop to determine the optimal number of topics. This, based on investigation and careful consideration, seemed to be 5. It provided not only enough differentiation, but also avoided heavily redundant clusters that plagued some of the models with more clusters. With this number determined, the final model was created and through the help of [pyLDAvis](https://github.com/bmabey/pyLDAvis) intuitively visualized. This was saved as a webpage and can be accessed [here](). While the clusters were visualized, they were not yet tied to sentiment. In order to do this, the topic clusters were extracted using a method of the class created above, and then added as a column to the DataFrame under the name "topic_cluster". A new DataFrame created purely for exporting and visualizing was then created, and for simplicities sake, all the clusters had one added in order to begin with one as opposed to zero. These were then exported to the file "articles_to_viz.csv", and visualized on [this tableau dashboard](https://public.tableau.com/app/profile/jack.rayner/viz/CapstoneVisualizations_16491744039740/Sentiment?publish=yes).
+
+## Conclusions:
+Based on the LDA model created and the visualizations, the subject or point of view of each topic could be inferred. Topic 1 seemed to refer to US military control in Afghanistan based on the words military, officials, Taliban. Particularly the unique presence of Taliban indicates struggle for military control in the region. The second cluster contained words such as officials, government, washington and new. This, coupled with the sentiment, indicated that it relates to updates on the war, particularly surrounding the government--of either country. Topic 3 contained unique words such as war, iraq, and united, all of which point towards a relationship with general US influence in the middle east and public opinion about the war.  Based on the unique occurrences of president, united states, and new, Topic 4 seems to be White House Press Releases. The sentiment was consistently the highest of all clusters, and this fit with the theme, as the White House has a strong incentive to put a positive spin on any operation it spearheads. The final topic cluster appeared very similar to Topic 4, but with much more emphasis on the military side of things. For this reason, it was labeled as military press releases. Based on the strong parallels in the graph with real world events,  the goal of discovering different opinion groups seems to have been achieved. This is evident by the sharp drop in the Military control and public opinion clusters in 2021--while the us was leaving Afghanistan--but increase in the white house cluster as this event was praised by the executive branch as it occurred. While this model was accurately able to extract topics useful to anyone wishing to know more about divergent opinions on the war, better contextual analysis could greatly improve the model.
+
+### Sources:
+1. https://www.pewresearch.org/fact-tank/2021/08/31/majority-of-u-s-public-favors-afghanistan-troop-withdrawal-biden-criticized-for-his-handling-of-situation/
+2. https://www.cfr.org/timeline/us-war-afghanistan
+3. https://www.britannica.com/event/Afghanistan-War
